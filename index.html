@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  
+  <title>학원 소식지 뷰어</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, "Noto Sans KR", sans-serif;
+      background: #222;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    .viewer {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: radial-gradient(circle, #444 0%, #1c1c1c 70%);
+      position: relative;
+    }
+
+    /* 상단바 */
+    .topbar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 10;
+      flex-shrink: 0;
+    }
+
+    .title {
+      font-size: 15px;
+      font-weight: 600;
+      flex: 1; 
+    }
+
+    .page-indicator {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 12px;
+      border-radius: 12px;
+      letter-spacing: 1px;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+      flex: 1; 
+    }
+
+    button {
+      border: 0;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:hover { background: rgba(255, 255, 255, 0.3); }
+
+    /* 슬라이드 영역 */
+    .slide-area {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    .slide-box {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s ease-out; 
+      transform-origin: center center;
+      will-change: transform;
+    }
+
+    .img-wrapper {
+      position: relative;
+      display: inline-block;
+      line-height: 0; 
+    }
+
+    .slide-img {
+      max-width: 92vw;
+      max-height: calc(100vh - 116px);
+      width: auto;
+      height: auto;
+      display: block;
+      background: #fff;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55);
+      border-radius: 8px;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-user-drag: none;
+      pointer-events: none;
+    }
+
+    .slide-img.fade { opacity: 0; transform: scale(0.98); }
+
+    .link-area {
+      position: absolute;
+      z-index: 30;
+      cursor: pointer;
+      border-radius: 6px; 
+    }
+
+    .link-area.has-text {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 2.2vw; 
+      font-weight: bold;
+      word-break: break-all;
+      padding: 4px 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      text-decoration: underline; 
+    }
+
+    /* 💡 특강 신청 팝업(모달) 스타일 */
+    .modal-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .modal-box {
+      background: #2a2a2a;
+      padding: 24px 30px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+      max-width: 85vw;
+    }
+
+    .modal-box p {
+      margin: 0 0 20px 0;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.5;
+      color: #fff;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .modal-buttons button {
+      flex: 1;
+      padding: 12px 0;
+      font-size: 15px;
+      font-weight: bold;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-yes { background: #0066ff; color: #fff; }
+    .btn-yes:hover { background: #005ce6; }
+    .btn-no { background: #555; color: #fff; }
+    .btn-no:hover { background: #666; }
+
+    .tooltip {
+      position: absolute;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.8); color: #fff; padding: 12px 20px;
+      border-radius: 8px; font-size: 14px; text-align: center;
+      line-height: 1.5; z-index: 50; pointer-events: none; transition: opacity 0.5s ease;
+    }
+    .tooltip.hide { opacity: 0; }
+
+    .nav-zone { position: absolute; top: 0; bottom: 0; width: 25%; cursor: pointer; z-index: 5; }
+    .nav-left { left: 0; }
+    .nav-right { right: 0; }
+    .arrow { position: absolute; top: 50%; transform: translateY(-50%); font-size: 64px; opacity: 0; transition: opacity 0.2s ease; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8); pointer-events: none; }
+    .nav-left .arrow { left: 28px; }
+    .nav-right .arrow { right: 28px; }
+    .nav-zone:hover .arrow { opacity: 0.75; }
+
+    .bottom-dots-bar { min-height: 54px; display: flex; align-items: flex-start; justify-content: center; padding: 10px 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); background: rgba(0, 0, 0, 0.55); z-index: 10; flex-shrink: 0; }
+    .dots { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 90vw; padding-top: 2px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.35); cursor: pointer; transition: transform 0.2s ease, background 0.2s ease; flex: 0 0 auto; }
+    .dot.active { background: #fff; transform: scale(1.35); }
+
+    .thumbs { position: absolute; left: 50%; bottom: 68px; transform: translateX(-50%); width: min(92vw, 900px); display: none; gap: 8px; padding: 10px; background: rgba(0, 0, 0, 0.65); border-radius: 14px; overflow-x: auto; z-index: 20; }
+    .thumbs.show { display: flex; }
+    .thumb { width: 70px; height: 95px; flex: 0 0 auto; border-radius: 6px; overflow: hidden; border: 2px solid transparent; cursor: pointer; background: #fff; }
+    .thumb.active { border-color: #fff; transform: translateY(-3px); }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    @media (max-width: 700px) {
+      .topbar { height: 52px; padding: 0 10px; }
+      .title { font-size: 13px; }
+      .page-indicator { font-size: 12px; padding: 4px 10px; }
+      button { padding: 7px 9px; font-size: 12px; }
+      #btnFullscreen { display: none; }
+      .slide-img { max-width: 94vw; max-height: calc(100vh - 116px); }
+      .bottom-dots-bar { min-height: 58px; padding-top: 8px; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+      .dots { gap: 7px; max-width: 88vw; padding-top: 0; }
+      .dot { width: 8px; height: 8px; }
+      .arrow { font-size: 46px; }
+      .thumbs { bottom: 72px; }
+      .link-area.has-text { font-size: 14px; } 
+    }
+  </style>
+</head>
+
+<body>
+  <div class="viewer">
+    <div class="topbar">
+      <div class="title">2026 여름방학 특강 안내문</div>
+      <div id="pageIndicator" class="page-indicator">1 / 2</div>
+      <div class="buttons">
+        <button onclick="toggleThumbs()">목록</button>
+        <button onclick="zoomOut()">－</button>
+        <button onclick="zoomIn()">＋</button>
+        <button id="btnFullscreen" onclick="toggleFullscreen()">전체화면</button>
+      </div>
+    </div>
+
+    <div id="registrationModal" class="modal-overlay hide" onclick="closeModal(event)">
+      <div class="modal-box" onclick="event.stopPropagation()">
+        <p>특강 신청 페이지로<br>넘어가시겠습니까?</p>
+        <div class="modal-buttons">
+          <button class="btn-yes" onclick="goToLecture()">네</button>
+          <button class="btn-no" onclick="closeModal()">아니오</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-area" id="slideArea">
+      <div id="tooltip" class="tooltip">
+        화면 양쪽 터치/스와이프로 넘김<br>두 손가락으로 확대/축소
+      </div>
+
+      <div class="nav-zone nav-left" onclick="safePrevSlide(event)">
+        <div class="arrow">‹</div>
+      </div>
+
+      <div class="slide-box" id="slideBox">
+        <div class="img-wrapper" id="imgWrapper">
+          <img id="slideImg" class="slide-img" src="" alt="newsletter page">
+        </div>
+      </div>
+
+      <div class="nav-zone nav-right" onclick="safeNextSlide(event)">
+        <div class="arrow">›</div>
+      </div>
+
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+
+    <div class="bottom-dots-bar">
+      <div class="dots" id="dots"></div>
+    </div>
+  </div>
+
+  <script>
+    /* =========================================
+       🔗 설정 영역 
+       ========================================= */
+    // 총 페이지 수 (현재 2페이지가 마지막이라고 하셔서 2로 설정)
+    const totalPages = 2; 
+
+    // 마지막 페이지에서 넘어갈 때 이동할 특강 신청 폼 주소
+    const specialLectureUrl = "https://forms.gle/nDHF8b1GyuDE6T4i6";
+
+    const pageLinks = {
+      // (필요 시 기존처럼 1, 2페이지 내부의 특정 링크 박스도 함께 운영 가능합니다)
+    };
+    /* ========================================= */
+
+    const imageExtension = "JPG"; 
+    let currentPage = 1;
+
+    let zoom = 1; let panX = 0; let panY = 0;
+    const minZoom = 1; const maxZoom = 3;
+
+    const slideArea = document.getElementById("slideArea");
+    const imgWrapper = document.getElementById("imgWrapper");
+    const slideImg = document.getElementById("slideImg");
+    const slideBox = document.getElementById("slideBox");
+    const thumbs = document.getElementById("thumbs");
+    const dots = document.getElementById("dots");
+    const pageIndicator = document.getElementById("pageIndicator");
+    const registrationModal = document.getElementById("registrationModal");
+
+    setTimeout(() => {
+      const tooltip = document.getElementById("tooltip");
+      if(tooltip) tooltip.classList.add("hide");
+    }, 3000);
+
+    function imagePath(pageNumber) {
+      return `page${pageNumber}.${imageExtension}`;
+    }
+
+    function preloadImage(pageNumber) {
+      if (pageNumber < 1 || pageNumber > totalPages) return;
+      const img = new Image();
+      img.src = imagePath(pageNumber);
+    }
+
+    function renderLinks() {
+      document.querySelectorAll(".link-area").forEach(el => el.remove());
+      const currentLinks = pageLinks[currentPage];
+      if (currentLinks) {
+        currentLinks.forEach(linkDef => {
+          const div = document.createElement("div");
+          div.className = "link-area";
+          if (linkDef.text) {
+            div.classList.add("has-text");
+            div.innerText = linkDef.text;
+            if (linkDef.bgColor) div.style.background = linkDef.bgColor;
+            if (linkDef.textColor) div.style.color = linkDef.textColor;
+            if (linkDef.fontSize) div.style.fontSize = linkDef.fontSize;
+          }
+          div.style.top = linkDef.top; div.style.left = linkDef.left;
+          div.style.width = linkDef.width; div.style.height = linkDef.height;
+          div.dataset.url = linkDef.url; 
+          div.addEventListener("click", function(e) {
+            if (isClickBlocked()) return;
+            e.stopPropagation(); window.open(linkDef.url, "_blank");
+          });
+          imgWrapper.appendChild(div);
+        });
+      }
+    }
+
+    function renderSlide() {
+      slideImg.classList.add("fade");
+      setTimeout(() => {
+        slideImg.src = imagePath(currentPage);
+        resetZoom();
+        updateActiveThumb();
+        updateActiveDot();
+        pageIndicator.innerText = `${currentPage} / ${totalPages}`;
+        renderLinks();
+        preloadImage(currentPage + 1);
+        preloadImage(currentPage - 1);
+        slideImg.classList.remove("fade");
+      }, 150);
+    }
+
+    // 💡 팝업창 제어 함수
+    function showModal() {
+      registrationModal.classList.remove("hide");
+    }
+    
+    function closeModal(e) {
+      if(e) e.stopPropagation(); // 배경 클릭 시 이벤트 전파 방지
+      registrationModal.classList.add("hide");
+    }
+
+    function goToLecture() {
+      window.open(specialLectureUrl, "_blank");
+      closeModal();
+    }
+
+    // 💡 다음 페이지 로직 업데이트 (마지막 페이지면 팝업 띄우기)
+    function nextSlide() { 
+      if (currentPage < totalPages) { 
+        currentPage++; 
+        renderSlide(); 
+      } else if (currentPage === totalPages) {
+        // 마지막 페이지에서 다음으로 넘어가려고 하면 팝업 실행!
+        showModal();
+      }
+    }
+    
+    function prevSlide() { if (currentPage > 1) { currentPage--; renderSlide(); } }
+    function goToPage(pageNumber) { if (pageNumber < 1 || pageNumber > totalPages) return; currentPage = pageNumber; renderSlide(); }
+
+    function isZoomedIn() { return zoom > 1.01; }
+
+    function applyTransform() {
+      if (zoom === 1) {
+        panX = 0; panY = 0;
+      } else {
+        const baseWidth = slideImg.offsetWidth;
+        const baseHeight = slideImg.offsetHeight;
+        const scaledWidth = baseWidth * zoom;
+        const scaledHeight = baseHeight * zoom;
+        const viewportWidth = slideArea.clientWidth;
+        const viewportHeight = slideArea.clientHeight;
+        const maxX = Math.max(0, (scaledWidth - viewportWidth) / 2);
+        const maxY = Math.max(0, (scaledHeight - viewportHeight) / 2);
+        panX = Math.max(-maxX, Math.min(maxX, panX));
+        panY = Math.max(-maxY, Math.min(maxY, panY));
+      }
+      slideBox.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    }
+
+    function resetZoom() { zoom = 1; panX = 0; panY = 0; applyTransform(); }
+    function zoomIn() { zoom = Math.min(zoom + 0.5, maxZoom); applyTransform(); }
+    function zoomOut() { zoom = Math.max(zoom - 0.5, minZoom); applyTransform(); }
+
+    let blockClickUntil = 0;
+    function isClickBlocked() { return Date.now() < blockClickUntil; }
+    function blockClickTemporarily() { blockClickUntil = Date.now() + 450; }
+
+    function safeNextSlide(e) {
+      if (isClickBlocked()) { if (e) { e.preventDefault(); e.stopPropagation(); } return; }
+      nextSlide();
+    }
+    function safePrevSlide(e) {
+      if (isClickBlocked()) { if (e) { e.preventDefault(); e.stopPropagation(); } return; }
+      prevSlide();
+    }
+
+    document.addEventListener("click", function (e) {
+      if (e.target.closest(".topbar button") || e.target.closest(".modal-overlay")) return;
+      if (isClickBlocked()) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      }
+    }, true);
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(err => console.log(err)); } 
+      else { document.exitFullscreen(); }
+    }
+
+    function toggleThumbs() { thumbs.classList.toggle("show"); }
+
+    function createThumbs() { 
+      thumbs.innerHTML = "";
+      for (let i = 1; i <= totalPages; i++) {
+        const thumb = document.createElement("div");
+        thumb.className = "thumb"; thumb.dataset.page = i;
+        const img = document.createElement("img"); img.src = imagePath(i);
+        thumb.appendChild(img);
+        thumb.addEventListener("click", () => {
+          if (isClickBlocked()) return;
+          goToPage(i); thumbs.classList.remove("show");
+        });
+        thumbs.appendChild(thumb);
+      }
+    }
+
+    function updateActiveThumb() {
+      document.querySelectorAll(".thumb").forEach(thumb => {
+        const page = Number(thumb.dataset.page);
+        thumb.classList.toggle("active", page === currentPage);
+      });
+    }
+
+    function createDots() { 
+      dots.innerHTML = "";
+      for (let i = 1; i <= totalPages; i++) {
+        const dot = document.createElement("div");
+        dot.className = "dot"; dot.dataset.page = i;
+        dot.addEventListener("click", () => {
+          if (isClickBlocked()) return; goToPage(i);
+        });
+        dots.appendChild(dot);
+      }
+    }
+
+    function updateActiveDot() {
+      document.querySelectorAll(".dot").forEach(dot => {
+        const page = Number(dot.dataset.page);
+        dot.classList.toggle("active", page === currentPage);
+      });
+    }
+
+    document.addEventListener("keydown", function (e) {
+      // 팝업이 켜져있을 땐 키보드 조작 막기
+      if (!registrationModal.classList.contains("hide")) return; 
+      
+      if (e.key === "ArrowRight") nextSlide();
+      if (e.key === "ArrowLeft") prevSlide();
+      if (e.key === "+") zoomIn();
+      if (e.key === "-") zoomOut();
+      if (e.key === "0") resetZoom();
+      if (e.key === "Escape") thumbs.classList.remove("show");
+    });
+
+    let touchStartX = 0; let touchStartY = 0; let touchStartTime = 0;
+    let lastPanX = 0; let lastPanY = 0;
+    let isTouching = false; let isPinching = false;
+    let startPinchDistance = 0; let startZoom = 1;
+
+    function getDistance(touch1, touch2) {
+      const dx = touch1.clientX - touch2.clientX; const dy = touch1.clientY - touch2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function handleTapPageTurn(tapX) {
+      const rect = slideArea.getBoundingClientRect();
+      const relativeX = tapX - rect.left; const width = rect.width;
+      if (relativeX < width * 0.25) { prevSlide(); blockClickTemporarily(); return true; }
+      if (relativeX > width * 0.75) { nextSlide(); blockClickTemporarily(); return true; }
+      return false;
+    }
+
+    slideArea.addEventListener("touchstart", function (e) {
+      if (!registrationModal.classList.contains("hide")) return; // 모달 떠있을 땐 무시
+
+      e.preventDefault(); isTouching = true;
+      if (e.touches.length >= 2) {
+        isPinching = true; startPinchDistance = getDistance(e.touches[0], e.touches[1]);
+        startZoom = zoom; blockClickTemporarily(); return;
+      }
+      isPinching = false; touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+      touchStartTime = Date.now(); lastPanX = panX; lastPanY = panY;
+    }, { passive: false });
+
+    slideArea.addEventListener("touchmove", function (e) {
+      if (!registrationModal.classList.contains("hide")) return;
+
+      e.preventDefault();
+      if (e.touches.length >= 2) {
+        isPinching = true; const currentDistance = getDistance(e.touches[0], e.touches[1]);
+        const scale = currentDistance / startPinchDistance;
+        zoom = Math.min(Math.max(startZoom * scale, minZoom), maxZoom);
+        applyTransform(); blockClickTemporarily(); return;
+      }
+      if (isZoomedIn() && e.touches.length === 1) {
+        const currentX = e.touches[0].clientX; const currentY = e.touches[0].clientY;
+        panX = lastPanX + (currentX - touchStartX); panY = lastPanY + (currentY - touchStartY);
+        applyTransform(); blockClickTemporarily();
+      }
+    }, { passive: false });
+
+    slideArea.addEventListener("touchend", function (e) {
+      if (!registrationModal.classList.contains("hide")) return;
+      if (!isTouching) return;
+      if (isPinching) {
+        if (e.touches.length === 0) { isPinching = false; isTouching = false; blockClickTemporarily(); }
+        return;
+      }
+      if (!e.changedTouches || e.changedTouches.length === 0) { isTouching = false; return; }
+
+      const touchEndX = e.changedTouches[0].clientX; const touchEndY = e.changedTouches[0].clientY;
+      const diffX = touchStartX - touchEndX; const diffY = touchStartY - touchEndY;
+      const absX = Math.abs(diffX); const absY = Math.abs(diffY);
+      const elapsed = Date.now() - touchStartTime;
+
+      const isTap = absX < 10 && absY < 10;
+      if (isTap) {
+        const touchTarget = document.elementFromPoint(touchEndX, touchEndY);
+        if (touchTarget && touchTarget.classList.contains("link-area")) {
+          window.open(touchTarget.dataset.url, "_blank"); isTouching = false; return;
+        }
+        handleTapPageTurn(touchEndX); isTouching = false; return;
+      }
+
+      if (isZoomedIn()) { blockClickTemporarily(); isTouching = false; return; }
+      if (isClickBlocked()) { isTouching = false; return; }
+
+      if (absX > 70 && absX > absY * 1.5 && elapsed < 900) {
+        blockClickTemporarily();
+        if (diffX > 0) nextSlide(); else prevSlide();
+      }
+      isTouching = false;
+    }, { passive: false });
+
+    slideArea.addEventListener("touchcancel", function () {
+      isTouching = false; isPinching = false; blockClickTemporarily();
+    }, { passive: false });
+
+    createThumbs(); createDots(); renderSlide();
+  </script>
+</body>
+</html>
